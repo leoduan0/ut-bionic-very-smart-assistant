@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.util.Locale
+import okhttp3.*
+import java.io.IOException
 
 private const val MOM_PHONE_NUMBER = "1234567890"
 private const val PSW_PHONE_NUMBER = "1234567890"
@@ -44,6 +46,32 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    private val client = OkHttpClient()
+
+    private fun sendRequestToESP32(
+        endpoint: String,
+        callback: (success: Boolean, response: String?) -> Unit
+    ) {
+        val url = "http://your-ip/openApartment"  // Replace with your ESP32 IP
+
+        val request = Request.Builder()
+            .url(url)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread { callback(false, e.message) }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                response.use {
+                    val body = response.body?.string()
+                    runOnUiThread { callback(true, body) }
+                }
+            }
+        })
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,6 +124,13 @@ class MainActivity : ComponentActivity() {
 
     private fun openApartmentDoor() {
         // opens apartment door
+        sendRequestToESP32("openApartment") { success, response ->
+            if (success) {
+                println("Apartment door opened successfully: $response")
+            } else {
+                println("Failed to open apartment door: $response")
+            }
+        }
     }
 
     private fun openSuiteDoor() {

@@ -50,7 +50,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-//    implementation(libs.okhttp)
+    implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
