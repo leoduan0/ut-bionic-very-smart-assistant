@@ -1,4 +1,4 @@
-package com.example.verysmartassistant
+package com.utbionic.verysmartassistant
 
 import org.junit.Test
 

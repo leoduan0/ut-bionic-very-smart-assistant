@@ -1,4 +1,4 @@
-package com.example.verysmartassistant
+package com.utbionic.verysmartassistant
 
 import android.Manifest
 import android.content.Intent
@@ -17,11 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
-import com.example.verysmartassistant.ui.theme.VerySmartAssistantTheme
+import com.utbionic.verysmartassistant.ui.theme.VerySmartAssistantTheme
 import android.speech.RecognizerIntent
-import android.app.Activity
 import android.content.pm.PackageManager
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.app.ActivityCompat
@@ -32,33 +30,16 @@ import java.io.IOException
 
 private const val MOM_PHONE_NUMBER = "1234567890"
 private const val PSW_PHONE_NUMBER = "1234567890"
+private const val CONTROLLER_IP_ADDRESS = "127.0.0.1"
 
 class MainActivity : ComponentActivity() {
-    private val speechRecognizerLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            val matches = result.data!!.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            val command = matches?.firstOrNull()?.lowercase(Locale.ROOT)
-            if (command != null) {
-                when {
-                    "call mom" in command -> call(MOM_PHONE_NUMBER)
-                }
-            }
-        }
-    }
-
     private val client = OkHttpClient()
 
-    private fun sendRequestToESP32(
-        endpoint: String,
-        callback: (success: Boolean, response: String?) -> Unit
+    private fun sendRequestToController(
+        endpoint: String, callback: (success: Boolean, response: String?) -> Unit
     ) {
-        val url = "http://your-ip/openApartment"  // Replace with your ESP32 IP
-
-        val request = Request.Builder()
-            .url(url)
-            .build()
+        val url = "http://$CONTROLLER_IP_ADDRESS/$endpoint"
+        val request = Request.Builder().url(url).build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -89,7 +70,6 @@ class MainActivity : ComponentActivity() {
                     onCallPSW = { call(PSW_PHONE_NUMBER) },
                     onOpenApartmentDoor = { openDoor("apartment") },
                     onOpenSuiteDoor = { openDoor("suite") },
-                    onVoiceCommand = { startVoiceRecognition() },
                 )
             }
         }
@@ -124,29 +104,24 @@ class MainActivity : ComponentActivity() {
 
     private fun openApartmentDoor() {
         // opens apartment door
-        sendRequestToESP32("openApartment") { success, response ->
+        sendRequestToController("remote/apartment") { success, response ->
             if (success) {
-                println("Apartment door opened successfully: $response")
+                println("Success: apartment door opened. $response")
             } else {
-                println("Failed to open apartment door: $response")
+                println("Failure: apartment door not opened. $response")
             }
         }
     }
 
     private fun openSuiteDoor() {
         // opens apartment door
-    }
-
-
-    private fun startVoiceRecognition() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a command...")
+        sendRequestToController("remote/suite") { success, response ->
+            if (success) {
+                println("Success: suite door opened. $response")
+            } else {
+                println("Failure: suite door not opened. $response")
+            }
         }
-        speechRecognizerLauncher.launch(intent)
     }
 }
 
@@ -158,7 +133,6 @@ fun Home(
     onCallPSW: () -> Unit = {},
     onOpenApartmentDoor: () -> Unit = {},
     onOpenSuiteDoor: () -> Unit = {},
-    onVoiceCommand: () -> Unit = {},
 ) {
     Column(modifier = modifier) {
         Text("Very Smart Assistant", fontWeight = FontWeight.Bold)
@@ -180,7 +154,5 @@ fun Home(
         Text("Doors", fontWeight = FontWeight.Bold)
         TextButton(onClick = { onOpenApartmentDoor() }) { Text("Open Apartment Door") }
         TextButton(onClick = { onOpenSuiteDoor() }) { Text("Open Suite Door") }
-
-        // TextButton(onClick = { onVoiceCommand() }) { Text("Activate Voice Command") }
     }
 }

@@ -5,13 +5,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.verysmartassistant"
+    namespace = "com.utbionic.verysmartassistant"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.verysmartassistant"
+        applicationId = "com.utbionic.verysmartassistant"
         minSdk = 33
         targetSdk = 36
         versionCode = 1
@@ -24,8 +24,7 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
         }
     }
@@ -50,8 +49,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9")
+    implementation(libs.okhttp)
+//    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.3.9")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

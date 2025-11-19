@@ -1,4 +1,4 @@
-package com.example.verysmartassistant.ui.theme
+package com.utbionic.verysmartassistant.ui.theme
 
 import android.app.Activity
 import android.os.Build
