@@ -2,43 +2,69 @@ package com.utbionic.verysmartassistant
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
-import com.utbionic.verysmartassistant.ui.theme.VerySmartAssistantTheme
-import android.speech.RecognizerIntent
-import android.content.pm.PackageManager
-import androidx.compose.foundation.layout.systemBarsPadding
-import androidx.compose.ui.text.font.FontWeight
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.util.Locale
-import okhttp3.*
+import androidx.core.net.toUri
+import com.utbionic.verysmartassistant.ui.theme.VerySmartAssistantTheme
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
 import java.io.IOException
 
-private const val MOM_PHONE_NUMBER = "1234567890"
-private const val PSW_PHONE_NUMBER = "1234567890"
-private const val CONTROLLER_IP_ADDRESS = "127.0.0.1"
-
 class MainActivity : ComponentActivity() {
+    private val information: Information by viewModels()
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            VerySmartAssistantTheme {
+                Home(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding()
+                        .padding(horizontal = 16.dp),
+                    information = information,
+                    onSetup = { setup() },
+                    onCallMom = { call(information.momNumber) },
+                    onCallPSW = { call(information.pswNumber) },
+                    onOpenApartmentDoor = { openDoor("apartment") },
+                    onOpenSuiteDoor = { openDoor("suite") },
+                )
+            }
+        }
+    }
+
     private val client = OkHttpClient()
 
     private fun sendRequestToController(
         endpoint: String, callback: (success: Boolean, response: String?) -> Unit
     ) {
-        val url = "http://$CONTROLLER_IP_ADDRESS/$endpoint"
+        val url = "http://${information.controllerAddress}/$endpoint"
         val request = Request.Builder().url(url).build()
 
         client.newCall(request).enqueue(object : Callback {
@@ -55,28 +81,8 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            VerySmartAssistantTheme {
-                Home(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .systemBarsPadding()
-                        .padding(horizontal = 16.dp),
-                    onSetup = { setup() },
-                    onCallMom = { call(MOM_PHONE_NUMBER) },
-                    onCallPSW = { call(PSW_PHONE_NUMBER) },
-                    onOpenApartmentDoor = { openDoor("apartment") },
-                    onOpenSuiteDoor = { openDoor("suite") },
-                )
-            }
-        }
-    }
-
+    // TODO implement
     private fun setup() {
-        // connects to ESP32
     }
 
     private fun call(phoneNumber: String) {
@@ -125,34 +131,60 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+
 @Composable
 fun Home(
     modifier: Modifier = Modifier,
+    information: Information,
     onSetup: () -> Unit = {},
     onCallMom: () -> Unit = {},
     onCallPSW: () -> Unit = {},
     onOpenApartmentDoor: () -> Unit = {},
     onOpenSuiteDoor: () -> Unit = {},
 ) {
+    var showInfoDialog by remember { mutableStateOf(false) }
+
     Column(modifier = modifier) {
         Text("Very Smart Assistant", fontWeight = FontWeight.Bold)
         Text(
             text = "Hello! I'm your Very Smart Assistant from the University of Toronto Bioengineering Innovation and Outreach in Consulting Club (UT BIONIC)!",
         )
+
         Text("Setup", fontWeight = FontWeight.Bold)
+        Text("Mom Phone Number: ${information.momNumber}")
+        Text("PSW Phone Number: ${information.pswNumber}")
         TextButton(onClick = { onSetup() }) { Text("Setup") }
         Text(
-            "This button may be pressed to setup the app for the first time or troubleshoot the connection between the app and the controller.",
+            "Setup the app for the first time or troubleshoot the connection between the app and the controller.",
             fontSize = 12.sp,
             color = Color.Gray
         )
+        TextButton(onClick = { showInfoDialog = true }) { Text("Update Information") }
+        Text(
+            "Update information like phone numbers", fontSize = 12.sp, color = Color.Gray
+        )
+
         Text(
             "Calls", fontWeight = FontWeight.Bold
         )
         TextButton(onClick = { onCallMom() }) { Text("Call Mom") }
         TextButton(onClick = { onCallPSW() }) { Text("Call PSW") }
+
         Text("Doors", fontWeight = FontWeight.Bold)
         TextButton(onClick = { onOpenApartmentDoor() }) { Text("Open Apartment Door") }
         TextButton(onClick = { onOpenSuiteDoor() }) { Text("Open Suite Door") }
+    }
+
+    if (showInfoDialog) {
+        InfoDialog(
+            currentMomNumber = information.momNumber,
+            currentPswNumber = information.pswNumber,
+            onDismissRequest = { showInfoDialog = false },
+            onConfirmation = { newMomNumber, newPswNumber ->
+                information.updateMomNumber(newMomNumber)
+                information.updatePswNumber(newPswNumber)
+                showInfoDialog = false
+            },
+        )
     }
 }

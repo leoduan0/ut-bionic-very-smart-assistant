@@ -1,13 +1,46 @@
-<?xml version ="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <capability android:name="actions.intent.CALL_MOM">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.utbionic.verysmartassistant.call"
+            android:targetPackage="com.utbionic.verysmartassistant">
+            <parameter
+                android:name="contact_name"
+                android:value="mom" />
+        </intent>
+    </capability>
+
+    <capability android:name="actions.intent.CALL_PSW">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.utbionic.verysmartassistant.call"
+            android:targetPackage="com.utbionic.verysmartassistant">
+            <parameter
+                android:name="contact_name"
+                android:value="psw" />
+        </intent>
+    </capability>
+
+    <capability android:name="actions.intent.OPEN_SUITE_DOOR">
         <intent
             android:action="android.intent.action.VIEW"
             android:targetClass="com.utbionic.verysmartassistant.browse"
             android:targetPackage="com.utbionic.verysmartassistant">
             <parameter
-                android:key="exercise_name"
-                android:name="exercise.name"></parameter>
+                android:name="door_type"
+                android:value="apartment" />
+        </intent>
+    </capability>
+
+    <capability android:name="actions.intent.OPEN_APARTMENT_DOOR">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.utbionic.verysmartassistant.browse"
+            android:targetPackage="com.utbionic.verysmartassistant">
+            <parameter
+                android:name="door_type"
+                android:value="suite" />
         </intent>
     </capability>
 </shortcuts>
