@@ -10,6 +10,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @Composable
 fun InfoDialog(
@@ -27,12 +29,16 @@ fun InfoDialog(
         Column {
             OutlinedTextField(
                 value = newMomNumber,
-                onValueChange = { newMomNumber = it },
-                label = { Text("Mom Phone Number") })
+                onValueChange = { newMomNumber = it.filter { c -> c.isDigit() } },
+                label = { Text("Mom Phone Number") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
             OutlinedTextField(
                 value = newPswNumber,
-                onValueChange = { newPswNumber = it },
-                label = { Text("PSW Phone Number") })
+                onValueChange = { newPswNumber = it.filter { c -> c.isDigit() } },
+                label = { Text("PSW Phone Number") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
         }
     }, onDismissRequest = {
         onDismissRequest()
