@@ -12,16 +12,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 
 @Composable
 fun InfoDialog(
     currentMomNumber: String,
     currentPswNumber: String,
+    currentControllerAddress: String,
+    currentWifiPassword: String,
     onDismissRequest: () -> Unit,
-    onConfirmation: (newMomNumber: String, newPswNumber: String) -> Unit,
+    onConfirmation: (
+        newMomNumber: String,
+        newPswNumber: String,
+        newControllerAddress: String,
+        newWifiPassword: String,
+    ) -> Unit,
 ) {
     var newMomNumber by remember { mutableStateOf(currentMomNumber) }
     var newPswNumber by remember { mutableStateOf(currentPswNumber) }
+    var newControllerAddress by remember { mutableStateOf(currentControllerAddress) }
+    var newWifiPassword by remember { mutableStateOf(currentWifiPassword) }
 
     AlertDialog(title = {
         Text("Update Information")
@@ -31,13 +41,30 @@ fun InfoDialog(
                 value = newMomNumber,
                 onValueChange = { newMomNumber = it.filter { c -> c.isDigit() } },
                 label = { Text("Mom Phone Number") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
             )
             OutlinedTextField(
                 value = newPswNumber,
                 onValueChange = { newPswNumber = it.filter { c -> c.isDigit() } },
                 label = { Text("PSW Phone Number") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = newControllerAddress,
+                onValueChange = { newControllerAddress = it.trim() },
+                label = { Text("Controller Address") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                singleLine = true,
+            )
+            OutlinedTextField(
+                value = newWifiPassword,
+                onValueChange = { newWifiPassword = it },
+                label = { Text("Wi-Fi Password") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
             )
         }
     }, onDismissRequest = {
@@ -45,7 +72,7 @@ fun InfoDialog(
     }, confirmButton = {
         TextButton(
             onClick = {
-                onConfirmation(newMomNumber, newPswNumber)
+                onConfirmation(newMomNumber, newPswNumber, newControllerAddress, newWifiPassword)
             }) {
             Text("Confirm")
         }

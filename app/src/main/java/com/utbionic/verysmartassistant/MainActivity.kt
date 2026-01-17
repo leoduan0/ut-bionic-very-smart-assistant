@@ -9,9 +9,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -166,7 +172,7 @@ class MainActivity : ComponentActivity() {
         return ipAddress?.hostAddress ?: "0.0.0.0"
     }
 
-    private fun getWifiPassword(): String = "" // TODO
+    private fun getWifiPassword(): String = information.wifiPassword
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -290,11 +296,24 @@ class MainActivity : ComponentActivity() {
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                 val service = gatt.getService(SERVICE_UUID)
                 val characteristic = service?.getCharacteristic(CHAR_UUID)
-                if (characteristic != null) {
-                    val payload =
-                        "IP:${getLocalIpAddress()};SSID:${getSSID()};PASSWORD:${getWifiPassword()}"
-                    sendData(gatt, characteristic, payload)
+                if (characteristic == null) {
+                    showToast("Controller service not found.")
+                    return
                 }
+
+                val ssid = getSSID()
+                val password = getWifiPassword()
+                if (ssid.isBlank() || ssid.equals("<unknown ssid>", ignoreCase = true)) {
+                    showToast("Wi-Fi SSID is unavailable. Please enable Location and retry.")
+                    return
+                }
+                if (password.isBlank()) {
+                    showToast("Please set the Wi-Fi password in Update Information.")
+                    return
+                }
+
+                val payload = "IP:${getLocalIpAddress()};SSID:$ssid;PASSWORD:$password"
+                sendData(gatt, characteristic, payload)
             }
 
             override fun onCharacteristicWrite(
@@ -323,32 +342,19 @@ class MainActivity : ComponentActivity() {
         gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, data: String
     ) {
         val bytes = data.toByteArray()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            gatt.writeCharacteristic(
-                characteristic, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-            )
-        } else {
-            @Suppress("DEPRECATION") characteristic.value = bytes
-            @Suppress("DEPRECATION") gatt.writeCharacteristic(characteristic)
-        }
+        gatt.writeCharacteristic(
+            characteristic, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        )
     }
 
     private fun showToast(msg: String) =
         runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() }
 
     private fun call(phoneNumber: String) {
-        val intent = Intent(Intent.ACTION_CALL).apply {
+        val intent = Intent(Intent.ACTION_DIAL).apply {
             data = ("tel:$phoneNumber").toUri()
         }
-
-        if (ContextCompat.checkSelfPermission(
-                this, Manifest.permission.CALL_PHONE
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            startActivity(intent)
-        } else {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CALL_PHONE), 1)
-        }
+        startActivity(intent)
     }
 
     private fun openDoor(target: String) {
@@ -363,9 +369,9 @@ class MainActivity : ComponentActivity() {
         // opens apartment door
         sendRequestToController("remote/apartment") { success, response ->
             if (success) {
-                println("Success: apartment door opened. $response")
+                showToast("Apartment door opened.")
             } else {
-                println("Failure: apartment door not opened. $response")
+                showToast("Apartment door failed to open. $response")
             }
         }
     }
@@ -374,9 +380,9 @@ class MainActivity : ComponentActivity() {
         // opens apartment door
         sendRequestToController("remote/suite") { success, response ->
             if (success) {
-                println("Success: suite door opened. $response")
+                showToast("Suite door opened.")
             } else {
-                println("Failure: suite door not opened. $response")
+                showToast("Suite door failed to open. $response")
             }
         }
     }
@@ -394,46 +400,79 @@ fun Home(
     onOpenSuiteDoor: () -> Unit = {},
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
-    Column(modifier = modifier) {
-        Text("Very Smart Assistant", fontWeight = FontWeight.Bold)
+    Column(modifier = modifier.verticalScroll(scrollState)) {
+        Text("Very Smart Assistant", fontWeight = FontWeight.Bold, fontSize = 22.sp)
         Text(
             text = "Hello! I'm your Very Smart Assistant from the University of Toronto Bioengineering Innovation and Outreach in Consulting Club (UT BIONIC)!",
         )
 
+        Spacer(modifier = Modifier.height(12.dp))
+
         Text("Setup", fontWeight = FontWeight.Bold)
         Text("Mom Phone Number: ${information.momNumber}")
         Text("PSW Phone Number: ${information.pswNumber}")
-        TextButton(onClick = { onSetup() }) { Text("Setup") }
+        Text("Controller Address: ${information.controllerAddress}")
+        Text(
+            "Wi-Fi Password: ${if (information.wifiPassword.isBlank()) "Not set" else "Set"}"
+        )
+        Button(
+            onClick = { onSetup() },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Setup") }
         Text(
             "Setup the app for the first time or repair the connection between the app and the controller.",
             fontSize = 12.sp,
             color = Color.Gray
         )
-        TextButton(onClick = { showInfoDialog = true }) { Text("Update Information") }
+        Button(
+            onClick = { showInfoDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Update Information") }
         Text(
             "Update information like phone numbers", fontSize = 12.sp, color = Color.Gray
         )
 
+        Spacer(modifier = Modifier.height(12.dp))
+
         Text(
             "Calls", fontWeight = FontWeight.Bold
         )
-        TextButton(onClick = { onCallMom() }) { Text("Call Mom") }
-        TextButton(onClick = { onCallPSW() }) { Text("Call PSW") }
+        Button(
+            onClick = { onCallMom() },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Call Mom") }
+        Button(
+            onClick = { onCallPSW() },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Call PSW") }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text("Doors", fontWeight = FontWeight.Bold)
-        TextButton(onClick = { onOpenApartmentDoor() }) { Text("Open Apartment Door") }
-        TextButton(onClick = { onOpenSuiteDoor() }) { Text("Open Suite Door") }
+        Button(
+            onClick = { onOpenApartmentDoor() },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Open Apartment Door") }
+        Button(
+            onClick = { onOpenSuiteDoor() },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Open Suite Door") }
     }
 
     if (showInfoDialog) {
         InfoDialog(
             currentMomNumber = information.momNumber,
             currentPswNumber = information.pswNumber,
+            currentControllerAddress = information.controllerAddress,
+            currentWifiPassword = information.wifiPassword,
             onDismissRequest = { showInfoDialog = false },
-            onConfirmation = { newMomNumber, newPswNumber ->
+            onConfirmation = { newMomNumber, newPswNumber, newControllerAddress, newWifiPassword ->
                 information.updateMomNumber(newMomNumber)
                 information.updatePswNumber(newPswNumber)
+                information.updateControllerAddress(newControllerAddress)
+                information.updateWifiPassword(newWifiPassword)
                 showInfoDialog = false
             },
         )
