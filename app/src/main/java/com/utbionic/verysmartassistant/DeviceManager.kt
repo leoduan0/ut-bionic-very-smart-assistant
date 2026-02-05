@@ -85,6 +85,94 @@ class DeviceManager(
         }
     }
 
+    /**
+     * Send a door open command to the ESP32
+     * @param target "apartment" or "suite"
+     * @param durationMs how long to hold the button (default 5000ms)
+     * @param callback returns (success, message)
+     */
+    fun sendDoorCommand(target: String, durationMs: Int = 5000, callback: (Boolean, String) -> Unit) {
+        val command = CommandProtocol.createDoorCommand(target, durationMs)
+        sendCommand(command, callback)
+    }
+
+    /**
+     * Send a structured command to the ESP32
+     * @param command the Command object to send
+     * @param callback returns (success, message)
+     */
+    fun sendCommand(command: Command, callback: (Boolean, String) -> Unit) {
+        scope.launch(Dispatchers.IO) {
+            var socket: Socket? = null
+            try {
+                val ip = information.controllerAddress
+                val port = 4211
+                val timeoutMs = 10000
+
+                socket = Socket()
+                socket.connect(InetSocketAddress(ip, port), timeoutMs)
+                socket.soTimeout = timeoutMs
+
+                // Send command as JSON
+                val commandJson = CommandProtocol.toJson(command)
+                val out: OutputStream = socket.getOutputStream()
+                out.write(commandJson.toByteArray())
+                out.write("\n".toByteArray())
+                out.flush()
+
+                // Read and parse response
+                val input = socket.getInputStream()
+                val buffer = ByteArray(1024)
+                val bytesRead = input.read(buffer)
+                
+                if (bytesRead <= 0) {
+                    withContext(Dispatchers.Main) { 
+                        callback(false, "No response from controller") 
+                    }
+                    return@launch
+                }
+
+                val responseString = String(buffer, 0, bytesRead)
+                val response = CommandProtocol.parseResponse(responseString)
+
+                if (response != null) {
+                    val message = response.message.ifBlank { 
+                        if (response.success) "${command.target} door opened successfully" 
+                        else "Failed to open ${command.target} door: ${response.error ?: "Unknown error"}"
+                    }
+                    withContext(Dispatchers.Main) { callback(response.success, message) }
+                } else {
+                    // Fallback if response parsing fails
+                    withContext(Dispatchers.Main) { 
+                        callback(false, "Invalid response format: $responseString") 
+                    }
+                }
+
+            } catch (e: SocketTimeoutException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) { 
+                    callback(false, "Command timeout - controller not responding") 
+                }
+            } catch (e: ConnectException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) { 
+                    callback(false, "Cannot connect to controller - check IP/network") 
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) { 
+                    callback(false, "Error: ${e.message ?: "Unknown error"}") 
+                }
+            } finally {
+                try {
+                    socket?.close()
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+    }
+
     fun sendRequestToController(endpoint: String, callback: (Boolean, String?) -> Unit) {
         scope.launch(Dispatchers.IO) {
             try {

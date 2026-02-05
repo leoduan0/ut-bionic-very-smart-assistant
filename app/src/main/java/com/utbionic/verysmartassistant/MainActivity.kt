@@ -102,15 +102,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openDoor(target: String) {
-        val endpoint = when (target) {
-            "apartment" -> "remote/apartment"
-            "suite" -> "remote/suite"
-            else -> return
-        }
-
-        deviceManager.sendRequestToController(endpoint) { success, response ->
-            val msg = if (success) "$target door opened." else "$target failed: $response"
-            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+        deviceManager.sendDoorCommand(target) { success, message ->
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
 }
