@@ -25,6 +25,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VerySmartAssistant"
         android:usesCleartextTraffic="true">
+        <meta-data
+            android:name="android.app.shortcuts"
+            android:resource="@xml/shortcuts" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -34,6 +37,19 @@
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="vsa"
+                    android:host="openDoor" />
+                <data
+                    android:scheme="vsa"
+                    android:host="call" />
             </intent-filter>
         </activity>
     </application>

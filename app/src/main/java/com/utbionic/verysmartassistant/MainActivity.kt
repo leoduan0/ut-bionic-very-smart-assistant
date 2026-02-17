@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
     // Use MainScope to interact with UI, pass this scope to DeviceManager
     private val scope = MainScope() 
     private lateinit var deviceManager: DeviceManager
+    private var pendingAction: (() -> Unit)? = null
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -49,9 +50,16 @@ class MainActivity : ComponentActivity() {
         
         // Initialize the manager
         deviceManager = DeviceManager(this, scope, information)
+        handleIntent(intent)
 
         setContent {
             VerySmartAssistantTheme {
+                LaunchedEffect(information.isLoaded) {
+                    if (information.isLoaded) {
+                        pendingAction?.invoke()
+                        pendingAction = null
+                    }
+                }
                 Home(
                     modifier = Modifier
                         .fillMaxSize()
@@ -72,6 +80,11 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         deviceManager.cleanup()
         scope.cancel()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
     }
 
     private fun checkPermissionsAndSetup() {
@@ -104,6 +117,52 @@ class MainActivity : ComponentActivity() {
     private fun openDoor(target: String) {
         deviceManager.sendDoorCommand(target) { success, message ->
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun runWhenInfoLoaded(action: () -> Unit) {
+        if (information.isLoaded) {
+            action()
+        } else {
+            pendingAction = action
+        }
+    }
+
+    private fun handleIntent(incoming: Intent) {
+        if (incoming.action != Intent.ACTION_VIEW) return
+
+        val uri = incoming.data
+        val doorFromUri = uri?.getQueryParameter("door_type")
+        val doorExtra = incoming.getStringExtra("door_type")
+        val contactFromUri = uri?.getQueryParameter("contact")
+        val contactExtra = incoming.getStringExtra("contact")
+        val feature = incoming.getStringExtra("feature")
+
+        val doorType = when {
+            !doorFromUri.isNullOrBlank() -> doorFromUri
+            !doorExtra.isNullOrBlank() -> doorExtra
+            !feature.isNullOrBlank() && feature.contains("apartment", ignoreCase = true) -> "apartment"
+            !feature.isNullOrBlank() && feature.contains("suite", ignoreCase = true) -> "suite"
+            else -> null
+        }
+
+        val contactType = when {
+            !contactFromUri.isNullOrBlank() -> contactFromUri
+            !contactExtra.isNullOrBlank() -> contactExtra
+            !feature.isNullOrBlank() && feature.contains("mom", ignoreCase = true) -> "mom"
+            !feature.isNullOrBlank() && feature.contains("psw", ignoreCase = true) -> "psw"
+            else -> null
+        }
+
+        if (doorType != null) {
+            runWhenInfoLoaded { openDoor(doorType) }
+        } else if (contactType != null) {
+            runWhenInfoLoaded {
+                when (contactType.lowercase()) {
+                    "mom" -> call(information.momNumber)
+                    "psw" -> call(information.pswNumber)
+                }
+            }
         }
     }
 }

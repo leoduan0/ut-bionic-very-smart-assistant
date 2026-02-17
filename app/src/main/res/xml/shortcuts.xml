@@ -1,46 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
-    <capability android:name="actions.intent.CALL_MOM">
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.utbionic.verysmartassistant.call"
+            android:data="vsa://openDoor?door_type=apartment"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
             android:targetPackage="com.utbionic.verysmartassistant">
             <parameter
-                android:name="contact_name"
-                android:value="mom" />
+                android:name="feature"
+                android:value="open apartment door" />
         </intent>
     </capability>
 
-    <capability android:name="actions.intent.CALL_PSW">
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.utbionic.verysmartassistant.call"
+            android:data="vsa://openDoor?door_type=suite"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
             android:targetPackage="com.utbionic.verysmartassistant">
             <parameter
-                android:name="contact_name"
-                android:value="psw" />
+                android:name="feature"
+                android:value="open suite door" />
         </intent>
     </capability>
 
-    <capability android:name="actions.intent.OPEN_SUITE_DOOR">
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.utbionic.verysmartassistant.browse"
+            android:data="vsa://call?contact=mom"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
             android:targetPackage="com.utbionic.verysmartassistant">
             <parameter
-                android:name="door_type"
-                android:value="apartment" />
+                android:name="feature"
+                android:value="call mom" />
         </intent>
     </capability>
 
-    <capability android:name="actions.intent.OPEN_APARTMENT_DOOR">
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.utbionic.verysmartassistant.browse"
+            android:data="vsa://call?contact=psw"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
             android:targetPackage="com.utbionic.verysmartassistant">
             <parameter
-                android:name="door_type"
-                android:value="suite" />
+                android:name="feature"
+                android:value="call psw" />
         </intent>
     </capability>
 </shortcuts>
