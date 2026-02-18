@@ -15,6 +15,11 @@
     <shortcut
         android:shortcutId="apartment_door"
         android:shortcutShortLabel="@string/label_apartment">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="vsa://openDoor?door_type=apartment"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
+            android:targetPackage="com.utbionic.verysmartassistant" />
         <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
             <parameter-binding
                 android:key="feature"
@@ -25,6 +30,11 @@
     <shortcut
         android:shortcutId="suite_door"
         android:shortcutShortLabel="@string/label_suite">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="vsa://openDoor?door_type=suite"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
+            android:targetPackage="com.utbionic.verysmartassistant" />
         <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
             <parameter-binding
                 android:key="feature"
@@ -35,6 +45,11 @@
     <shortcut
         android:shortcutId="call_mom"
         android:shortcutShortLabel="@string/label_mom">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="vsa://call?contact=mom"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
+            android:targetPackage="com.utbionic.verysmartassistant" />
         <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
             <parameter-binding
                 android:key="feature"
@@ -45,6 +60,11 @@
     <shortcut
         android:shortcutId="call_psw"
         android:shortcutShortLabel="@string/label_psw">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="vsa://call?contact=psw"
+            android:targetClass="com.utbionic.verysmartassistant.MainActivity"
+            android:targetPackage="com.utbionic.verysmartassistant" />
         <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
             <parameter-binding
                 android:key="feature"
