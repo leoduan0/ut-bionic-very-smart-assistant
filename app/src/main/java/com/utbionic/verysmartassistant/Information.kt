@@ -35,6 +35,8 @@ class Information(application: Application) : AndroidViewModel(application) {
         private set
     var wifiPassword by mutableStateOf("")
         private set
+    var isLoaded by mutableStateOf(false)
+        private set
 
     init {
         viewModelScope.launch {
@@ -49,6 +51,7 @@ class Information(application: Application) : AndroidViewModel(application) {
                 pswNumber = state.pswNumber
                 controllerAddress = state.controllerAddress
                 wifiPassword = state.wifiPassword
+                isLoaded = true
             }
         }
     }

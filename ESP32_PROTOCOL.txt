@@ -1,0 +1,111 @@
+// ESP32 Communication Protocol Reference
+// This file documents the expected JSON command and response format
+// for the Android app to ESP32 communication
+
+// ============= INCOMING COMMANDS (from Android) =============
+// Commands are received as JSON strings ending with \n
+
+// Example 1: Open apartment door
+{
+  "cmd": "PUSH_BUTTON",
+  "target": "apartment",
+  "duration": 5000
+}
+
+// Example 2: Open suite door
+{
+  "cmd": "PUSH_BUTTON",
+  "target": "suite",
+  "duration": 5000
+}
+
+// Field Descriptions:
+// - cmd: Command type (e.g., "PUSH_BUTTON")
+// - target: Which door/actuator ("apartment" or "suite")
+// - duration: How long to hold the button in milliseconds (default 5000)
+
+// ============= OUTGOING RESPONSES (to Android) =============
+// Response should be sent as JSON string ending with \n
+
+// Success Response:
+{
+  "success": true,
+  "message": "Apartment door opened successfully",
+  "target": "apartment"
+}
+
+// Failure Response:
+{
+  "success": false,
+  "message": "Failed to open door",
+  "target": "apartment",
+  "error": "Actuator timeout or GPIO error"
+}
+
+// Field Descriptions:
+// - success: Boolean indicating if command executed successfully
+// - message: Human-readable status message
+// - target: Which door the command was for (optional)
+// - error: Error description if failed (optional)
+
+// ============= IMPLEMENTATION EXAMPLE (Arduino/ESP32) =============
+/*
+#include <ArduinoJson.h>
+#include <WiFi.h>
+
+WiFiServer server(4211);
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin("SSID", "PASSWORD");
+  server.begin();
+  
+  pinMode(APARTMENT_PIN, OUTPUT);
+  pinMode(SUITE_PIN, OUTPUT);
+}
+
+void loop() {
+  WiFiClient client = server.available();
+  if (!client) return;
+  
+  while (client.connected()) {
+    if (client.available()) {
+      String jsonStr = client.readStringUntil('\n');
+      
+      StaticJsonDocument<200> doc;
+      DeserializationError error = deserializeJson(doc, jsonStr);
+      
+      if (error) {
+        sendResponse(client, false, "Invalid JSON", "");
+        continue;
+      }
+      
+      String cmd = doc["cmd"];
+      String target = doc["target"];
+      int duration = doc["duration"] | 5000;
+      
+      if (cmd == "PUSH_BUTTON") {
+        int pin = (target == "apartment") ? APARTMENT_PIN : SUITE_PIN;
+        
+        digitalWrite(pin, HIGH);
+        delay(duration);
+        digitalWrite(pin, LOW);
+        
+        sendResponse(client, true, target + " door opened successfully", target);
+      }
+    }
+  }
+  client.stop();
+}
+
+void sendResponse(WiFiClient &client, bool success, String message, String target) {
+  StaticJsonDocument<200> response;
+  response["success"] = success;
+  response["message"] = message;
+  response["target"] = target;
+  
+  String jsonStr;
+  serializeJson(response, jsonStr);
+  client.println(jsonStr);
+}
+*/

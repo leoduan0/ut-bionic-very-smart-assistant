@@ -16,3 +16,11 @@ local.properties
 
 .idea/
 .kotlin/
+
+# Local test utilities
+/mock_esp32_server.py
+/ESP32_PROTOCOL.txt
+
+# Python cache
+__pycache__/
+*.pyc
