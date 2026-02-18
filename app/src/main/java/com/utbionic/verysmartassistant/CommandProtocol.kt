@@ -10,12 +10,9 @@ import kotlinx.serialization.json.Json
  */
 @Serializable
 data class Command(
-    @SerialName("cmd")
-    val command: String,
-    @SerialName("target")
-    val target: String,  // "apartment" or "suite"
-    @SerialName("duration")
-    val durationMs: Int = 5000  // Default 5 seconds
+    @SerialName("cmd") val command: String,
+    @SerialName("target") val target: String,  // "apartment" or "suite"
+    @SerialName("duration") val durationMs: Int = 5000  // Default 5 seconds
 )
 
 /**
@@ -23,14 +20,10 @@ data class Command(
  */
 @Serializable
 data class CommandResponse(
-    @SerialName("success")
-    val success: Boolean,
-    @SerialName("message")
-    val message: String,
-    @SerialName("target")
-    val target: String? = null,
-    @SerialName("error")
-    val error: String? = null
+    @SerialName("success") val success: Boolean,
+    @SerialName("message") val message: String,
+    @SerialName("target") val target: String? = null,
+    @SerialName("error") val error: String? = null
 )
 
 object CommandProtocol {
@@ -60,9 +53,7 @@ object CommandProtocol {
      */
     fun createDoorCommand(target: String, durationMs: Int = 5000): Command {
         return Command(
-            command = "PUSH_BUTTON",
-            target = target,
-            durationMs = durationMs
+            command = "PUSH_BUTTON", target = target, durationMs = durationMs
         )
     }
 }

@@ -17,7 +17,7 @@
         android:shortcutShortLabel="@string/label_apartment">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="vsa://openDoor?door_type=apartment"
+            android:data="vsa://opendoor?door_type=apartment"
             android:targetClass="com.utbionic.verysmartassistant.MainActivity"
             android:targetPackage="com.utbionic.verysmartassistant" />
         <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
@@ -32,7 +32,7 @@
         android:shortcutShortLabel="@string/label_suite">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="vsa://openDoor?door_type=suite"
+            android:data="vsa://opendoor?door_type=suite"
             android:targetClass="com.utbionic.verysmartassistant.MainActivity"
             android:targetPackage="com.utbionic.verysmartassistant" />
         <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">

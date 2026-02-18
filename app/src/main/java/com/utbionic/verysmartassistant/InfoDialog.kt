@@ -1,6 +1,7 @@
 package com.utbionic.verysmartassistant
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -10,7 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 
@@ -19,18 +19,21 @@ fun InfoDialog(
     currentMomNumber: String,
     currentPswNumber: String,
     currentControllerAddress: String,
+    currentWifiSsid: String,
     currentWifiPassword: String,
     onDismissRequest: () -> Unit,
     onConfirmation: (
         newMomNumber: String,
         newPswNumber: String,
         newControllerAddress: String,
+        newWifiSsid: String,
         newWifiPassword: String,
     ) -> Unit,
 ) {
     var newMomNumber by remember { mutableStateOf(currentMomNumber) }
     var newPswNumber by remember { mutableStateOf(currentPswNumber) }
     var newControllerAddress by remember { mutableStateOf(currentControllerAddress) }
+    var newWifiSsid by remember { mutableStateOf(currentWifiSsid) }
     var newWifiPassword by remember { mutableStateOf(currentWifiPassword) }
 
     AlertDialog(title = {
@@ -59,6 +62,13 @@ fun InfoDialog(
                 singleLine = true,
             )
             OutlinedTextField(
+                value = newWifiSsid,
+                onValueChange = { newWifiSsid = it.trim() },
+                label = { Text("Wi-Fi SSID") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                singleLine = true,
+            )
+            OutlinedTextField(
                 value = newWifiPassword,
                 onValueChange = { newWifiPassword = it },
                 label = { Text("Wi-Fi Password") },
@@ -72,7 +82,10 @@ fun InfoDialog(
     }, confirmButton = {
         TextButton(
             onClick = {
-                onConfirmation(newMomNumber, newPswNumber, newControllerAddress, newWifiPassword)
+                onConfirmation(
+                    newMomNumber, newPswNumber, newControllerAddress, newWifiSsid, newWifiPassword
+                )
+                onDismissRequest()
             }) {
             Text("Confirm")
         }
