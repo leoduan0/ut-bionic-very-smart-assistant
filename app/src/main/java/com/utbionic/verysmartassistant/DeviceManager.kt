@@ -20,7 +20,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
 import java.io.OutputStream
+import java.io.InputStreamReader
 import java.net.ConnectException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -78,11 +80,15 @@ class DeviceManager(
         return try {
             Socket().use { socket ->
                 socket.connect(InetSocketAddress(ip, port), timeout)
+                socket.soTimeout = timeout
                 val out: OutputStream = socket.getOutputStream()
                 out.write("ARE_YOU_ALIVE_BRO\n".toByteArray())
                 out.flush()
+
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                val response = reader.readLine()?.trim().orEmpty()
+                response.equals("ACK", ignoreCase = true)
             }
-            true
         } catch (e: Exception) {
             e.printStackTrace()
             false
@@ -124,7 +130,19 @@ class DeviceManager(
     fun sendDoorCommand(
         target: String, durationMs: Int = 5000, callback: (Boolean, String) -> Unit
     ) {
-        sendCommand(CommandProtocol.createDoorCommand(target, durationMs), callback)
+        val normalizedTarget = target.trim().lowercase()
+        if (normalizedTarget != "apartment" && normalizedTarget != "suite") {
+            callback(false, "Invalid door target: $target")
+            return
+        }
+
+        val controllerAddress = information.controllerAddress.trim()
+        if (controllerAddress.isBlank()) {
+            callback(false, "Controller address is not set")
+            return
+        }
+
+        sendCommand(CommandProtocol.createDoorCommand(normalizedTarget, durationMs), callback)
     }
 
     /**
@@ -136,7 +154,7 @@ class DeviceManager(
         scope.launch(Dispatchers.IO) {
             var socket: Socket? = null
             try {
-                val ip = information.controllerAddress
+                val ip = information.controllerAddress.trim()
                 val port = 4211
                 val timeoutMs = 10000
 
@@ -151,19 +169,16 @@ class DeviceManager(
                 out.write("\n".toByteArray())
                 out.flush()
 
-                // Read and parse response
-                val input = socket.getInputStream()
-                val buffer = ByteArray(1024)
-                val bytesRead = input.read(buffer)
+                // Read and parse newline-delimited response JSON
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                val responseString = reader.readLine()?.trim().orEmpty()
 
-                if (bytesRead <= 0) {
+                if (responseString.isBlank()) {
                     withContext(Dispatchers.Main) {
                         callback(false, "No response from controller")
                     }
                     return@launch
                 }
-
-                val responseString = String(buffer, 0, bytesRead)
                 val response = CommandProtocol.parseResponse(responseString)
 
                 if (response != null) {

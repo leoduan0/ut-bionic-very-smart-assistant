@@ -92,8 +92,8 @@ class MainActivity : ComponentActivity() {
                         showMessage("Opening dialer for PSW")
                         call(information.pswNumber)
                     },
-                    onOpenApartmentDoor = { openDoor("apartment") },
-                    onOpenSuiteDoor = { openDoor("suite") },
+                    onOpenApartmentDoor = { openApartmentDoor() },
+                    onOpenSuiteDoor = { openSuiteDoor() },
                     onInformationUpdated = { showMessage("Information updated") },
                 )
             }
@@ -140,6 +140,14 @@ class MainActivity : ComponentActivity() {
             data = ("tel:$sanitizedNumber").toUri()
         }
         startActivity(intent)
+    }
+
+    private fun openApartmentDoor() {
+        openDoor("apartment")
+    }
+
+    private fun openSuiteDoor() {
+        openDoor("suite")
     }
 
     private fun openDoor(target: String) {
