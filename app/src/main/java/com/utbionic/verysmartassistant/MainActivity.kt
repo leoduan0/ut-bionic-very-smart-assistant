@@ -49,12 +49,16 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions.values.all { it }) {
+        val deniedPermissions = permissions.filter { !it.value }.keys
+        if (deniedPermissions.isEmpty()) {
             deviceManager.setupBluetooth()
         } else {
-            Toast.makeText(
-                this, "Error: Bluetooth/Location permissions denied.", Toast.LENGTH_SHORT
-            ).show()
+            val msg = "Missing permissions: ${
+                deniedPermissions.joinToString(", ") {
+                    it.substringAfterLast('.')
+                }
+            }. Please enable them in settings."
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -62,7 +66,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Initialize the manager
         deviceManager = DeviceManager(this, scope, information)
         handleIntent(intent)
 
@@ -81,15 +84,14 @@ class MainActivity : ComponentActivity() {
                         .padding(horizontal = 16.dp),
                     information = information,
                     onSetup = {
-                        showMessage("Starting setup...")
-                        checkPermissionsAndSetup()
+                        setup()
                     },
                     onCallMom = {
-                        showMessage("Opening dialer for Mom")
+                        showMessage("Calling mom")
                         call(information.momNumber)
                     },
                     onCallPSW = {
-                        showMessage("Opening dialer for PSW")
+                        showMessage("Calling PSW")
                         call(information.pswNumber)
                     },
                     onOpenApartmentDoor = { openApartmentDoor() },
@@ -108,14 +110,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleIntent(intent)
     }
 
-    private fun checkPermissionsAndSetup() {
+    private fun setup() {
+        showMessage("Starting setup...")
         val permissions = listOf(
             Manifest.permission.BLUETOOTH_SCAN,
             Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.ACCESS_FINE_LOCATION,
         )
 
         val ungranted = permissions.filter {
@@ -123,7 +126,13 @@ class MainActivity : ComponentActivity() {
         }
 
         if (ungranted.isEmpty()) {
-            deviceManager.setupBluetooth()
+            deviceManager.testConnection { isConnected ->
+                if (isConnected) {
+                    showMessage("Already connected to the controller!")
+                } else {
+                    deviceManager.setupBluetooth()
+                }
+            }
         } else {
             requestPermissionLauncher.launch(ungranted.toTypedArray())
         }
@@ -151,7 +160,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openDoor(target: String) {
-        showMessage("Sending ${target.lowercase()} door command...")
+        showMessage("Opening ${target.lowercase()} door...")
         deviceManager.sendDoorCommand(target) { _, message ->
             showMessage(message)
         }
@@ -228,7 +237,6 @@ fun Home(
 
     Column(modifier = modifier.verticalScroll(scrollState)) {
         Text("Very Smart Assistant", fontWeight = FontWeight.Bold, fontSize = 22.sp)
-        Text("Hello! I'm your Very Smart Assistant from the University of Toronto Bioengineering Innovation and Outreach in Consulting Club (UT BIONIC)!")
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -236,8 +244,8 @@ fun Home(
         Text("Mom Phone Number: ${information.momNumber}")
         Text("PSW Phone Number: ${information.pswNumber}")
         Text("Controller Address: ${information.controllerAddress}")
-        Text("Wi-Fi SSID: ${if (information.wifiSsid.isBlank()) "Not set" else information.wifiSsid}")
-        Text("Wi-Fi Password: ${if (information.wifiPassword.isBlank()) "Not set" else "Set"}")
+        Text("Wi-Fi SSID: ${information.wifiSsid.ifBlank { "(not set)" }}")
+        Text("Wi-Fi Password: ${if (information.wifiPassword.isBlank()) "(not set)" else "(set)"}")
 
         Button(onClick = onSetup, modifier = Modifier.fillMaxWidth()) { Text("Setup") }
         Text(
@@ -266,6 +274,12 @@ fun Home(
         Button(
             onClick = onOpenSuiteDoor, modifier = Modifier.fillMaxWidth()
         ) { Text("Open Suite Door") }
+
+        Text(
+            "Made with ❤️ by the University of Toronto Bioengineering Innovation and Outreach in Consulting Club (UT BIONIC).",
+            fontSize = 12.sp,
+            color = Color.Gray
+        )
     }
 
     if (showInfoDialog) {

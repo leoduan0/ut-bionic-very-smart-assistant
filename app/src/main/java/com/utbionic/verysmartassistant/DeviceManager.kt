@@ -5,14 +5,20 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.ParcelUuid
 import android.widget.Toast
-import androidx.core.app.ActivityCompat
+import androidx.annotation.RequiresPermission
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -21,8 +27,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
-import java.io.OutputStream
 import java.io.InputStreamReader
+import java.io.OutputStream
 import java.net.ConnectException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -30,6 +36,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 class DeviceManager(
@@ -39,17 +46,34 @@ class DeviceManager(
 ) {
     private var heartbeatJob: Job? = null
     private var scanTimeoutJob: Job? = null
+    private var provisioningTimeoutJob: Job? = null
     private val maxRetries = 3
+    private val provisioningTimeoutMs = 30_000L
     private val SERVICE_UUID = UUID.fromString("0000abcd-0000-1000-8000-00805f9b34fb")
     private val CHAR_UUID = UUID.fromString("0000dcba-0000-1000-8000-00805f9b34fb")
+    private val CCC_DESCRIPTOR_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
 
     private fun hasPermission(permission: String): Boolean {
-        return ActivityCompat.checkSelfPermission(
+        return ContextCompat.checkSelfPermission(
             context, permission
         ) == PackageManager.PERMISSION_GRANTED
     }
 
     // --- TCP / Network Functions ---
+
+    fun testConnection(callback: (Boolean) -> Unit) {
+        scope.launch(Dispatchers.IO) {
+            val address = information.controllerAddress.trim()
+            if (address.isBlank()) {
+                withContext(Dispatchers.Main) { callback(false) }
+                return@launch
+            }
+
+            // Just a single attempt for quick setup testing
+            val success = sendTcpHeartbeat(address, timeout = 3000)
+            withContext(Dispatchers.Main) { callback(success) }
+        }
+    }
 
     fun startTcpHeartbeat() {
         heartbeatJob?.cancel()
@@ -221,43 +245,61 @@ class DeviceManager(
 
     // --- Bluetooth Functions ---
     fun setupBluetooth() {
-        val adapter =
-            (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
+        val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val adapter = manager.adapter
         if (adapter == null || !adapter.isEnabled) {
             Toast.makeText(context, "Please enable Bluetooth first", Toast.LENGTH_SHORT).show()
             return
         }
 
-        if (!hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
-            showToast("Bluetooth scan permission is required")
+        if (!hasPermission(Manifest.permission.BLUETOOTH_SCAN) || !hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
+            showToast("Bluetooth permissions are required")
             return
         }
 
         val scanner = adapter.bluetoothLeScanner
-        Toast.makeText(context, "Searching for the controller...", Toast.LENGTH_SHORT).show()
+        if (scanner == null) {
+            showToast("Bluetooth LE not supported on this device")
+            return
+        }
+
+        Toast.makeText(context, "Scanning for VSA Controller wirelessly...", Toast.LENGTH_SHORT)
+            .show()
 
         val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult?) {
-                if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
-                    showToast("Bluetooth connect permission is required")
-                    return
+                val device = result?.device ?: return
+
+                scanTimeoutJob?.cancel()
+                if (hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
+                    try {
+                        scanner.stopScan(this)
+                    } catch (_: SecurityException) {
+                    }
                 }
 
-                if (result?.device?.name?.contains("ESP32", ignoreCase = true) == true) {
-                    scanTimeoutJob?.cancel()
-                    if (hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
-                        scanner.stopScan(this)
-                    }
-                    connectToController(result.device)
-                }
+                showToast("Found controller! Connecting...")
+                connectToController(device)
+            }
+
+            override fun onScanFailed(errorCode: Int) {
+                showToast("Bluetooth scan failed: $errorCode")
             }
         }
+
+        // Only explicitly look for devices specifically broadcasting our Service UUID!
+        val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE_UUID)).build()
+
+        val settings =
+            ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+
         try {
-            scanner.startScan(scanCallback)
+            scanner.startScan(listOf(filter), settings, scanCallback)
         } catch (_: SecurityException) {
             showToast("Bluetooth scan permission is required")
             return
         }
+
         scanTimeoutJob?.cancel()
         scanTimeoutJob = scope.launch {
             delay(15_000)
@@ -265,20 +307,20 @@ class DeviceManager(
                 try {
                     scanner.stopScan(scanCallback)
                 } catch (_: SecurityException) {
-                    showToast("Unable to stop scan due to missing permission")
+                    // Ignore
                 }
             }
-            showToast("Controller not found. Please try setup again.")
+            showToast("Controller not found. Make sure it's powered on and nearby.")
         }
     }
 
     private fun connectToController(device: BluetoothDevice) {
         if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT)) {
-            showToast("Bluetooth connect permission is required")
             return
         }
 
         try {
+            var pendingProvisionPayload: ByteArray? = null
             device.connectGatt(context, false, object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(
                     gatt: BluetoothGatt, status: Int, newState: Int
@@ -292,59 +334,207 @@ class DeviceManager(
 
                 override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
                     if (status != BluetoothGatt.GATT_SUCCESS) {
-                        showToast("Failed to discover controller services")
+                        gatt.disconnect()
+                        return
+                    }
+
+                    val service = gatt.getService(SERVICE_UUID)
+                    if (service == null) {
+                        // Not the target controller, disconnect quietly
+                        gatt.disconnect()
+                        return
+                    }
+
+                    val characteristic = service.getCharacteristic(CHAR_UUID)
+                    if (characteristic == null) {
+                        gatt.disconnect()
+                        return
+                    }
+
+                    scanTimeoutJob?.cancel()
+                    showToast("Controller matched!")
+
+                    val ssid = information.wifiSsid
+                    val password = information.wifiPassword
+
+                    if (ssid.isBlank()) {
+                        showToast("Please set a Wi-Fi SSID")
+                        gatt.disconnect()
+                        return
+                    }
+                    if (password.isBlank()) {
+                        showToast("Please set a Wi-Fi password")
+                        gatt.disconnect()
+                        return
+                    }
+
+                    val json = "{\"ssid\":\"$ssid\",\"password\":\"$password\"}"
+                    pendingProvisionPayload = json.toByteArray(StandardCharsets.UTF_8)
+
+                    val notificationsEnabled =
+                        gatt.setCharacteristicNotification(characteristic, true)
+                    if (!notificationsEnabled) {
+                        showToast("Failed to enable controller notifications")
+                        gatt.disconnect()
+                        return
+                    }
+
+                    val cccDescriptor = characteristic.getDescriptor(CCC_DESCRIPTOR_UUID)
+                    if (cccDescriptor == null) {
+                        showToast("Controller notification descriptor missing")
+                        gatt.disconnect()
+                        return
+                    }
+
+                    val descriptorWriteStatus = gatt.writeDescriptor(
+                        cccDescriptor, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    )
+                    if (descriptorWriteStatus != BluetoothStatusCodes.SUCCESS) {
+                        showToast("Failed to configure controller notifications")
+                        gatt.disconnect()
+                        return
+                    }
+
+                    provisioningTimeoutJob?.cancel()
+                    provisioningTimeoutJob = scope.launch {
+                        delay(provisioningTimeoutMs)
+                        showToast("Setup timed out waiting for controller Wi-Fi connection")
+                        gatt.disconnect()
+                    }
+                }
+
+                override fun onCharacteristicWrite(
+                    gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int
+                ) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        showToast("Credentials sent. Waiting for controller Wi-Fi connection...")
+                    } else {
+                        provisioningTimeoutJob?.cancel()
+                        showToast("Failed to send credentials.")
+                        gatt.disconnect()
+                    }
+                }
+
+                override fun onDescriptorWrite(
+                    gatt: BluetoothGatt, descriptor: BluetoothGattDescriptor, status: Int
+                ) {
+                    if (descriptor.uuid != CCC_DESCRIPTOR_UUID) {
+                        return
+                    }
+
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        provisioningTimeoutJob?.cancel()
+                        showToast("Failed to subscribe to controller status")
                         gatt.disconnect()
                         return
                     }
 
                     val service = gatt.getService(SERVICE_UUID)
                     val characteristic = service?.getCharacteristic(CHAR_UUID)
-                    if (characteristic == null) {
-                        showToast("Controller service not found.")
+                    val payload = pendingProvisionPayload
+                    if (characteristic == null || payload == null) {
+                        provisioningTimeoutJob?.cancel()
+                        showToast("Missing provisioning data")
                         gatt.disconnect()
                         return
                     }
 
-                    val configuredSsid = information.wifiSsid.trim()
-                    val ssid = if (configuredSsid.isNotBlank()) {
-                        configuredSsid
-                    } else {
-                        NetworkUtils.getSSID(context)
-                    }
-                    val password = information.wifiPassword
-
-                    // Basic Validation
-                    if (ssid.isBlank() || ssid.equals("<unknown ssid>", ignoreCase = true)) {
-                        showToast("Wi-Fi SSID unavailable. Check Location/Permissions.")
-                        gatt.disconnect()
-                        return
-                    }
-                    if (password.isBlank()) {
-                        showToast("Please set Wi-Fi password in settings.")
-                        gatt.disconnect()
-                        return
-                    }
-
-                    val payload =
-                        "IP:${NetworkUtils.getLocalIpAddress(context)};SSID:$ssid;PASSWORD:$password"
-                    val bytes = payload.toByteArray()
-                    gatt.writeCharacteristic(
-                        characteristic, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                    val writeStatus = gatt.writeCharacteristic(
+                        characteristic, payload, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
                     )
+                    if (writeStatus != BluetoothStatusCodes.SUCCESS) {
+                        provisioningTimeoutJob?.cancel()
+                        showToast("Failed to send Wi-Fi credentials")
+                        gatt.disconnect()
+                    }
                 }
 
-                override fun onCharacteristicWrite(
-                    gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int
+                override fun onCharacteristicChanged(
+                    gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic
                 ) {
-                    showToast(if (status == BluetoothGatt.GATT_SUCCESS) "Credentials sent!" else "Failed to send credentials.")
-                    gatt.disconnect()
-                    if (status == BluetoothGatt.GATT_SUCCESS) {
-                        startTcpHeartbeat()
-                    }
+                    handleProvisioningResponse(gatt, characteristic.value)
+                }
+
+                override fun onCharacteristicChanged(
+                    gatt: BluetoothGatt,
+                    characteristic: BluetoothGattCharacteristic,
+                    value: ByteArray
+                ) {
+                    handleProvisioningResponse(gatt, value)
                 }
             })
         } catch (_: SecurityException) {
             showToast("Bluetooth connect permission is required")
+        }
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    private fun handleProvisioningResponse(gatt: BluetoothGatt, rawValue: ByteArray) {
+        val payload = rawValue.toString(StandardCharsets.UTF_8).trim()
+        if (payload.isBlank()) {
+            return
+        }
+
+        val connectedIp = parseConnectedIp(payload)
+        if (connectedIp != null) {
+            provisioningTimeoutJob?.cancel()
+            information.updateControllerAddress(connectedIp)
+            showToast("Controller connected at $connectedIp")
+            gatt.disconnect()
+            startTcpHeartbeat()
+            return
+        }
+
+        if (isFailureStatus(payload)) {
+            provisioningTimeoutJob?.cancel()
+            showToast("Controller failed to connect to Wi-Fi")
+            gatt.disconnect()
+            return
+        }
+
+        if (isConnectingStatus(payload)) {
+            showToast("Controller is connecting to Wi-Fi...")
+        }
+    }
+
+    private fun parseConnectedIp(payload: String): String? {
+        val jsonIp = Regex("\"ip\"\\s*:\\s*\"([^\"]+)\"").find(payload)?.groupValues?.get(1)
+        if (!jsonIp.isNullOrBlank() && isIpv4(jsonIp)) {
+            return jsonIp
+        }
+
+        val labelIp =
+            Regex("(?:IP|ip)\\s*[:=]\\s*([0-9]{1,3}(?:\\.[0-9]{1,3}){3})").find(payload)?.groupValues?.get(
+                1
+            )
+        if (!labelIp.isNullOrBlank() && isIpv4(labelIp)) {
+            return labelIp
+        }
+
+        return null
+    }
+
+    private fun isFailureStatus(payload: String): Boolean {
+        val normalized = payload.lowercase()
+        return normalized.contains("\"status\":\"failed\"") || normalized.contains("wifi_failed") || normalized.contains(
+            "wifi_connect_failed"
+        )
+    }
+
+    private fun isConnectingStatus(payload: String): Boolean {
+        val normalized = payload.lowercase()
+        return normalized.contains("\"status\":\"connecting\"") || normalized.contains("wifi_connecting")
+    }
+
+    private fun isIpv4(value: String): Boolean {
+        val parts = value.split('.')
+        if (parts.size != 4) {
+            return false
+        }
+        return parts.all { part ->
+            val num = part.toIntOrNull() ?: return false
+            num in 0..255
         }
     }
 
@@ -357,5 +547,6 @@ class DeviceManager(
     fun cleanup() {
         heartbeatJob?.cancel()
         scanTimeoutJob?.cancel()
+        provisioningTimeoutJob?.cancel()
     }
 }
