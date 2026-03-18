@@ -1,6 +1,7 @@
 package com.utbionic.verysmartassistant
 
 import android.content.Context
+import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,7 @@ import java.net.ConnectException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.SocketTimeoutException
+import java.net.URI
 
 class DeviceManager(
     private val context: Context,
@@ -24,6 +26,8 @@ class DeviceManager(
 ) {
     private var heartbeatJob: Job? = null
     private val maxRetries = 3
+    private val defaultControllerPort = 4211
+    private val logTag = "DeviceManager"
 
     // --- TCP / Network Functions ---
 
@@ -66,24 +70,108 @@ class DeviceManager(
         }
     }
 
-    private fun sendTcpHeartbeat(ip: String, port: Int = 4211, timeout: Int = 3000): Boolean {
+    private fun sendTcpHeartbeat(rawAddress: String, timeout: Int = 3000): Boolean {
+        val endpoint = parseControllerEndpoint(rawAddress, defaultControllerPort)
+        if (endpoint == null) {
+            Log.w(logTag, "Invalid controller address for heartbeat: '$rawAddress'")
+            return false
+        }
+
+        if (sendHeartbeat(endpoint, "HEARTBEAT", timeout, expectAck = true)) {
+            return true
+        }
+
+        // Backward compatibility: older firmware expects ARE_YOU_ALIVE_BRO and may not ACK.
+        return sendHeartbeat(endpoint, "ARE_YOU_ALIVE_BRO", timeout, expectAck = false)
+    }
+
+    private fun sendHeartbeat(
+        endpoint: ControllerEndpoint,
+        command: String,
+        timeout: Int,
+        expectAck: Boolean,
+    ): Boolean {
         return try {
             Socket().use { socket ->
-                socket.connect(InetSocketAddress(ip, port), timeout)
+                socket.connect(InetSocketAddress(endpoint.host, endpoint.port), timeout)
                 socket.soTimeout = timeout
                 val out: OutputStream = socket.getOutputStream()
-                out.write("HEARTBEAT\n".toByteArray())
+                out.write("$command\n".toByteArray())
                 out.flush()
 
                 val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-                val response = reader.readLine()?.trim().orEmpty()
-                response.equals("ACK", ignoreCase = true)
+                val response = try {
+                    reader.readLine()?.trim().orEmpty()
+                } catch (_: SocketTimeoutException) {
+                    ""
+                }
+                Log.d(
+                    logTag,
+                    "Heartbeat '$command' response from ${endpoint.host}:${endpoint.port}: '$response'",
+                )
+
+                if (!expectAck) {
+                    // Legacy firmware may not return any payload for heartbeat.
+                    return response.isBlank() || isHeartbeatAck(response)
+                }
+
+                isHeartbeatAck(response)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(logTag, "Heartbeat command '$command' failed", e)
             false
         }
     }
+
+    private fun isHeartbeatAck(response: String): Boolean {
+        if (response.isBlank()) return false
+        val normalized = response.trim()
+        return normalized.equals("ACK", ignoreCase = true) ||
+            normalized.equals("ALIVE", ignoreCase = true) ||
+            normalized.equals("YEAH_ALIVE_BRO", ignoreCase = true) ||
+            normalized.contains("\"success\":true", ignoreCase = true)
+    }
+
+    private fun parseControllerEndpoint(
+        rawAddress: String,
+        defaultPort: Int,
+    ): ControllerEndpoint? {
+        val candidate = normalizeControllerAddress(rawAddress)
+        if (candidate.isBlank()) return null
+
+        return try {
+            val withScheme = if (candidate.contains("://")) candidate else "tcp://$candidate"
+            val uri = URI(withScheme)
+            val host = uri.host?.trim().orEmpty()
+            if (host.isBlank()) return null
+
+            val port = if (uri.port in 1..65535) uri.port else defaultPort
+            ControllerEndpoint(host, port)
+        } catch (e: Exception) {
+            Log.w(logTag, "Unable to parse controller address: '$candidate'", e)
+            null
+        }
+    }
+
+    private fun normalizeControllerAddress(rawAddress: String): String {
+        val trimmed = rawAddress.trim()
+        if (trimmed.isBlank()) return ""
+
+        // Accept pasted values like "IP: 192.168.1.10" from serial output.
+        val withoutLabel = trimmed.replace(
+            Regex("^(ip|host|controller\\s*address)\\s*[:=]\\s*", RegexOption.IGNORE_CASE),
+            "",
+        )
+
+        return withoutLabel
+            .trim()
+            .trimEnd('/', ',', ';')
+    }
+
+    private data class ControllerEndpoint(
+        val host: String,
+        val port: Int,
+    )
 
     private suspend fun onConnectionLost() {
         withContext(Dispatchers.Main) {
@@ -134,13 +222,23 @@ class DeviceManager(
         scope.launch(Dispatchers.IO) {
             var socket: Socket? = null
             try {
-                val ip = information.controllerAddress.trim()
-                val port = 4211
+                val endpoint = parseControllerEndpoint(
+                    information.controllerAddress,
+                    defaultControllerPort,
+                )
+                if (endpoint == null) {
+                    withContext(Dispatchers.Main) {
+                        callback(false, "Invalid controller address. Use IP/host or IP:port.")
+                    }
+                    return@launch
+                }
+
                 val timeoutMs = 10000
 
                 socket = Socket()
-                socket.connect(InetSocketAddress(ip, port), timeoutMs)
+                socket.connect(InetSocketAddress(endpoint.host, endpoint.port), timeoutMs)
                 socket.soTimeout = timeoutMs
+                Log.d(logTag, "Sending command '$command' to ${endpoint.host}:${endpoint.port}")
 
                 // ESP32 controller expects line-based ASCII commands.
                 val out: OutputStream = socket.getOutputStream()
@@ -151,6 +249,7 @@ class DeviceManager(
                 // Firmware returns one line per command, usually JSON.
                 val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
                 val responseString = reader.readLine()?.trim().orEmpty()
+                Log.d(logTag, "Command '$command' response: '$responseString'")
 
                 if (responseString.isBlank()) {
                     withContext(Dispatchers.Main) {
@@ -159,13 +258,24 @@ class DeviceManager(
                     return@launch
                 }
 
-                val success = responseString.contains("\"success\":true", ignoreCase = true)
+                val successFromJson = responseString.contains("\"success\":true", ignoreCase = true)
                 val message = extractJsonField(responseString, "message").ifBlank {
+                    responseString
+                }
+                val normalizedMessage = message.lowercase()
+                val semanticFailure = normalizedMessage.contains("busy") ||
+                    normalizedMessage.contains("unknown command") ||
+                    normalizedMessage.contains("failed")
+                val success = successFromJson && !semanticFailure
+
+                val userMessage = if (message.isNotBlank()) {
+                    message
+                } else {
                     if (success) "Command sent successfully" else "Command failed"
                 }
 
                 withContext(Dispatchers.Main) {
-                    callback(success, message)
+                    callback(success, userMessage)
                 }
 
             } catch (e: SocketTimeoutException) {

@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private val scope = MainScope()
     private lateinit var deviceManager: DeviceManager
     private var pendingAction: (() -> Unit)? = null
+    private var statusMessage by mutableStateOf("Ready. Tap Setup to test controller.")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
                         .systemBarsPadding()
                         .padding(horizontal = 16.dp),
                     information = information,
+                    statusMessage = statusMessage,
                     onSetup = {
                         setup()
                     },
@@ -128,13 +130,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openDoor(target: String) {
-        showMessage("Opening ${target.lowercase()} door...")
-        deviceManager.sendDoorCommand(target) { _, message ->
-            showMessage(message)
+        val normalizedTarget = target.trim().lowercase()
+        val label = if (normalizedTarget == "apartment") "Apartment" else "Suite"
+
+        showMessage("$label button tapped. Sending command...")
+        deviceManager.sendDoorCommand(normalizedTarget) { success, message ->
+            val resultPrefix = if (success) "ACK" else "FAILED"
+            val statusText = if (success) {
+                "$label: $resultPrefix - controller accepted command ($message)"
+            } else {
+                "$label: $resultPrefix - $message"
+            }
+            showMessage(statusText)
         }
     }
 
     private fun showMessage(message: String) {
+        statusMessage = message
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
@@ -193,6 +205,7 @@ class MainActivity : ComponentActivity() {
 fun Home(
     modifier: Modifier = Modifier,
     information: Information,
+    statusMessage: String,
     onSetup: () -> Unit,
     onCallMom: () -> Unit,
     onCallPSW: () -> Unit,
@@ -240,6 +253,13 @@ fun Home(
         Button(
             onClick = onOpenSuiteDoor, modifier = Modifier.fillMaxWidth()
         ) { Text("Open Suite Door") }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Last action: $statusMessage",
+            fontSize = 12.sp,
+            color = Color.Gray,
+        )
 
         Text(
             "Made with ❤️ by the University of Toronto Bioengineering Innovation and Outreach in Consulting Club (UT BIONIC).",
