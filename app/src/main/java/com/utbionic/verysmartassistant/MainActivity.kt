@@ -1,14 +1,11 @@
 package com.utbionic.verysmartassistant
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -32,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.utbionic.verysmartassistant.ui.theme.VerySmartAssistantTheme
 import kotlinx.coroutines.MainScope
@@ -45,22 +41,6 @@ class MainActivity : ComponentActivity() {
     private val scope = MainScope()
     private lateinit var deviceManager: DeviceManager
     private var pendingAction: (() -> Unit)? = null
-
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val deniedPermissions = permissions.filter { !it.value }.keys
-        if (deniedPermissions.isEmpty()) {
-            deviceManager.setupBluetooth()
-        } else {
-            val msg = "Missing permissions: ${
-                deniedPermissions.joinToString(", ") {
-                    it.substringAfterLast('.')
-                }
-            }. Please enable them in settings."
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,25 +96,13 @@ class MainActivity : ComponentActivity() {
 
     private fun setup() {
         showMessage("Starting setup...")
-        val permissions = listOf(
-            Manifest.permission.BLUETOOTH_SCAN,
-            Manifest.permission.BLUETOOTH_CONNECT,
-        )
-
-        val ungranted = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }
-
-        if (ungranted.isEmpty()) {
-            deviceManager.testConnection { isConnected ->
-                if (isConnected) {
-                    showMessage("Already connected to the controller!")
-                } else {
-                    deviceManager.setupBluetooth()
-                }
+        deviceManager.testConnection { isConnected ->
+            if (isConnected) {
+                showMessage("Connected to the controller")
+                deviceManager.startTcpHeartbeat()
+            } else {
+                showMessage("Cannot reach controller. Check address and Wi-Fi network.")
             }
-        } else {
-            requestPermissionLauncher.launch(ungranted.toTypedArray())
         }
     }
 
@@ -244,12 +212,10 @@ fun Home(
         Text("Mom Phone Number: ${information.momNumber}")
         Text("PSW Phone Number: ${information.pswNumber}")
         Text("Controller Address: ${information.controllerAddress}")
-        Text("Wi-Fi SSID: ${information.wifiSsid.ifBlank { "(not set)" }}")
-        Text("Wi-Fi Password: ${if (information.wifiPassword.isBlank()) "(not set)" else "(set)"}")
 
         Button(onClick = onSetup, modifier = Modifier.fillMaxWidth()) { Text("Setup") }
         Text(
-            "Setup the app for the first time or repair the connection.",
+            "Checks controller connection over Wi-Fi.",
             fontSize = 12.sp,
             color = Color.Gray
         )
@@ -288,15 +254,11 @@ fun Home(
             currentMomNumber = information.momNumber,
             currentPswNumber = information.pswNumber,
             currentControllerAddress = information.controllerAddress,
-            currentWifiSsid = information.wifiSsid,
-            currentWifiPassword = information.wifiPassword,
             onDismissRequest = { showInfoDialog = false },
-            onConfirmation = { newMom, newPsw, newAddr, newSsid, newPass ->
+            onConfirmation = { newMom, newPsw, newAddr ->
                 information.updateMomNumber(newMom)
                 information.updatePswNumber(newPsw)
                 information.updateControllerAddress(newAddr)
-                information.updateWifiSsid(newSsid)
-                information.updateWifiPassword(newPass)
                 onInformationUpdated()
             },
         )

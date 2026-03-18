@@ -25,18 +25,12 @@ class Information(application: Application) : AndroidViewModel(application) {
     private val momNumberKey = stringPreferencesKey("mom_number")
     private val pswNumberKey = stringPreferencesKey("psw_number")
     private val controllerAddressKey = stringPreferencesKey("controller_address")
-    private val wifiSsidKey = stringPreferencesKey("wifi_ssid")
-    private val wifiPasswordKey = stringPreferencesKey("wifi_password")
 
     var momNumber by mutableStateOf("1234567890")
         private set
     var pswNumber by mutableStateOf("1234567890")
         private set
     var controllerAddress by mutableStateOf("very-smart-controller.local")
-        private set
-    var wifiSsid by mutableStateOf("")
-        private set
-    var wifiPassword by mutableStateOf("")
         private set
     var isLoaded by mutableStateOf(false)
         private set
@@ -53,8 +47,6 @@ class Information(application: Application) : AndroidViewModel(application) {
                 momNumber = state.momNumber
                 pswNumber = state.pswNumber
                 controllerAddress = state.controllerAddress
-                wifiSsid = state.wifiSsid
-                wifiPassword = state.wifiPassword
                 isLoaded = true
             }
         }
@@ -75,16 +67,6 @@ class Information(application: Application) : AndroidViewModel(application) {
         persist { it[controllerAddressKey] = newControllerAddress }
     }
 
-    fun updateWifiSsid(newWifiSsid: String) {
-        wifiSsid = newWifiSsid
-        persist { it[wifiSsidKey] = newWifiSsid }
-    }
-
-    fun updateWifiPassword(newWifiPassword: String) {
-        wifiPassword = newWifiPassword
-        persist { it[wifiPasswordKey] = newWifiPassword }
-    }
-
     private fun persist(block: (MutablePreferences) -> Unit) {
         viewModelScope.launch {
             dataStore.edit { prefs ->
@@ -98,8 +80,6 @@ class Information(application: Application) : AndroidViewModel(application) {
             momNumber = this[momNumberKey] ?: "1234567890",
             pswNumber = this[pswNumberKey] ?: "1234567890",
             controllerAddress = this[controllerAddressKey] ?: "very-smart-controller.local",
-            wifiSsid = this[wifiSsidKey] ?: "",
-            wifiPassword = this[wifiPasswordKey] ?: "",
         )
     }
 
@@ -107,7 +87,5 @@ class Information(application: Application) : AndroidViewModel(application) {
         val momNumber: String,
         val pswNumber: String,
         val controllerAddress: String,
-        val wifiSsid: String,
-        val wifiPassword: String,
     )
 }

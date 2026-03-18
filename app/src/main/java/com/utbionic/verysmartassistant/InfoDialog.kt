@@ -12,29 +12,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 
 @Composable
 fun InfoDialog(
     currentMomNumber: String,
     currentPswNumber: String,
     currentControllerAddress: String,
-    currentWifiSsid: String,
-    currentWifiPassword: String,
     onDismissRequest: () -> Unit,
     onConfirmation: (
         newMomNumber: String,
         newPswNumber: String,
         newControllerAddress: String,
-        newWifiSsid: String,
-        newWifiPassword: String,
     ) -> Unit,
 ) {
     var newMomNumber by remember { mutableStateOf(currentMomNumber) }
     var newPswNumber by remember { mutableStateOf(currentPswNumber) }
     var newControllerAddress by remember { mutableStateOf(currentControllerAddress) }
-    var newWifiSsid by remember { mutableStateOf(currentWifiSsid) }
-    var newWifiPassword by remember { mutableStateOf(currentWifiPassword) }
 
     AlertDialog(title = {
         Text("Update Information")
@@ -61,30 +54,13 @@ fun InfoDialog(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 singleLine = true,
             )
-            OutlinedTextField(
-                value = newWifiSsid,
-                onValueChange = { newWifiSsid = it.trim() },
-                label = { Text("Wi-Fi SSID") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                singleLine = true,
-            )
-            OutlinedTextField(
-                value = newWifiPassword,
-                onValueChange = { newWifiPassword = it },
-                label = { Text("Wi-Fi Password") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-            )
         }
     }, onDismissRequest = {
         onDismissRequest()
     }, confirmButton = {
         TextButton(
             onClick = {
-                onConfirmation(
-                    newMomNumber, newPswNumber, newControllerAddress, newWifiSsid, newWifiPassword
-                )
+                onConfirmation(newMomNumber, newPswNumber, newControllerAddress)
                 onDismissRequest()
             }) {
             Text("Confirm")
