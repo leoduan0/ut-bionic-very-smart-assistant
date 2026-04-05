@@ -20,17 +20,23 @@ import java.io.IOException
 private val Application.dataStore by preferencesDataStore(name = "information")
 
 class Information(application: Application) : AndroidViewModel(application) {
+    companion object {
+        private const val DEFAULT_MOM_NUMBER = "1234567890"
+        private const val DEFAULT_PSW_NUMBER = "1234567890"
+        private const val DEFAULT_CONTROLLER_ADDRESS = "very-smart-controller.local"
+    }
+
     private val dataStore = application.dataStore
 
     private val momNumberKey = stringPreferencesKey("mom_number")
     private val pswNumberKey = stringPreferencesKey("psw_number")
     private val controllerAddressKey = stringPreferencesKey("controller_address")
 
-    var momNumber by mutableStateOf("1234567890")
+    var momNumber by mutableStateOf(DEFAULT_MOM_NUMBER)
         private set
-    var pswNumber by mutableStateOf("1234567890")
+    var pswNumber by mutableStateOf(DEFAULT_PSW_NUMBER)
         private set
-    var controllerAddress by mutableStateOf("very-smart-controller.local")
+    var controllerAddress by mutableStateOf(DEFAULT_CONTROLLER_ADDRESS)
         private set
     var isLoaded by mutableStateOf(false)
         private set
@@ -52,19 +58,12 @@ class Information(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateMomNumber(newMomNumber: String) {
-        momNumber = newMomNumber
-        persist { it[momNumberKey] = newMomNumber }
-    }
-
-    fun updatePswNumber(newPswNumber: String) {
-        pswNumber = newPswNumber
-        persist { it[pswNumberKey] = newPswNumber }
-    }
-
-    fun updateControllerAddress(newControllerAddress: String) {
-        controllerAddress = newControllerAddress
-        persist { it[controllerAddressKey] = newControllerAddress }
+    fun update(newMomNumber: String, newPswNumber: String, newControllerAddress: String) {
+        persist {
+            it[momNumberKey] = newMomNumber
+            it[pswNumberKey] = newPswNumber
+            it[controllerAddressKey] = newControllerAddress
+        }
     }
 
     private fun persist(block: (MutablePreferences) -> Unit) {
@@ -77,11 +76,12 @@ class Information(application: Application) : AndroidViewModel(application) {
 
     private fun Preferences.toInfoState(): InfoState {
         return InfoState(
-            momNumber = this[momNumberKey] ?: "1234567890",
-            pswNumber = this[pswNumberKey] ?: "1234567890",
-            controllerAddress = this[controllerAddressKey] ?: "very-smart-controller.local",
+            momNumber = this[momNumberKey] ?: DEFAULT_MOM_NUMBER,
+            pswNumber = this[pswNumberKey] ?: DEFAULT_PSW_NUMBER,
+            controllerAddress = this[controllerAddressKey] ?: DEFAULT_CONTROLLER_ADDRESS,
         )
     }
+
 
     private data class InfoState(
         val momNumber: String,

@@ -24,3 +24,5 @@ local.properties
 # Python cache
 __pycache__/
 *.pyc
+
+kls_database.db
