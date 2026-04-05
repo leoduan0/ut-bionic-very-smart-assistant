@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
                         call(information.pswNumber)
                     },
                     onOpenApartmentDoor = { openDoor("APARTMENT") },
-                    onOpenSuiteDoor = { openDoor("SUITE") },
+                    onOpenRoomDoor = { openDoor("ROOM") },
                     onInformationUpdated = { showMessage("Information updated") },
                 )
             }
@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun setup() {
-        showMessage("Connected to the controller and started heartbeat.")
+        showMessage("Attempting to connect to controller...")
         deviceManager.startHeartbeat(60_000) { heartbeatSuccess ->
             val wasConnected = isControllerConnected
             isControllerConnected = heartbeatSuccess
@@ -115,8 +115,8 @@ class MainActivity : ComponentActivity() {
                 "OPEN_APARTMENT"
             }
 
-            "SUITE" -> {
-                "OPEN_SUITE"
+            "ROOM" -> {
+                "OPEN_ROOM"
             }
 
             else -> {
@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
                 "apartment", ignoreCase = true
             ) -> "apartment"
 
-            !feature.isNullOrBlank() && feature.contains("suite", ignoreCase = true) -> "suite"
+            !feature.isNullOrBlank() && feature.contains("room", ignoreCase = true) -> "room"
             else -> null
         }
 
@@ -189,7 +189,7 @@ fun Home(
     onCallMom: () -> Unit,
     onCallPSW: () -> Unit,
     onOpenApartmentDoor: () -> Unit,
-    onOpenSuiteDoor: () -> Unit,
+    onOpenRoomDoor: () -> Unit,
     onInformationUpdated: () -> Unit,
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
@@ -241,8 +241,8 @@ fun Home(
             onClick = onOpenApartmentDoor, modifier = Modifier.fillMaxWidth()
         ) { Text("Open Apartment Door") }
         Button(
-            onClick = onOpenSuiteDoor, modifier = Modifier.fillMaxWidth()
-        ) { Text("Open Suite Door") }
+            onClick = onOpenRoomDoor, modifier = Modifier.fillMaxWidth()
+        ) { Text("Open Room Door") }
 
         Spacer(modifier = Modifier.height(8.dp))
 
