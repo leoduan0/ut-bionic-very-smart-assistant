@@ -66,6 +66,12 @@ class Information(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateControllerAddress(newControllerAddress: String) {
+        persist {
+            it[controllerAddressKey] = newControllerAddress
+        }
+    }
+
     private fun persist(block: (MutablePreferences) -> Unit) {
         viewModelScope.launch {
             dataStore.edit { prefs ->

@@ -44,7 +44,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        deviceManager = DeviceManager(scope, information)
+        deviceManager = DeviceManager(applicationContext, scope, information)
         handleIntent(intent)
 
         setContent {
@@ -87,7 +87,13 @@ class MainActivity : ComponentActivity() {
 
     private fun setup() {
         showMessage("Attempting to connect to controller...")
-        deviceManager.startHeartbeat(60_000) { heartbeatSuccess ->
+        deviceManager.discoverControllerAddress { heartbeatSuccess ->
+            if (heartbeatSuccess == null) {
+                showMessage("Could not find controller via mDNS.")
+                isControllerConnected = false
+                return@discoverControllerAddress
+            }
+
             val wasConnected = isControllerConnected
             isControllerConnected = heartbeatSuccess
 
@@ -96,6 +102,18 @@ class MainActivity : ComponentActivity() {
             }
             if (heartbeatSuccess && !wasConnected) {
                 showMessage("Connection restored.")
+            }
+
+            deviceManager.startHeartbeat(60_000) { periodicHeartbeatSuccess ->
+                val wasPeriodicallyConnected = isControllerConnected
+                isControllerConnected = periodicHeartbeatSuccess
+
+                if (!periodicHeartbeatSuccess && wasPeriodicallyConnected) {
+                    showMessage("Connection lost.")
+                }
+                if (periodicHeartbeatSuccess && !wasPeriodicallyConnected) {
+                    showMessage("Connection restored.")
+                }
             }
         }
     }
