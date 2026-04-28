@@ -59,9 +59,19 @@ class Information(application: Application) : AndroidViewModel(application) {
     }
 
     fun update(newMomNumber: String, newPswNumber: String, newControllerAddress: String) {
+        momNumber = newMomNumber
+        pswNumber = newPswNumber
+        controllerAddress = newControllerAddress
         persist {
             it[momNumberKey] = newMomNumber
             it[pswNumberKey] = newPswNumber
+            it[controllerAddressKey] = newControllerAddress
+        }
+    }
+
+    fun updateControllerAddress(newControllerAddress: String) {
+        controllerAddress = newControllerAddress
+        persist {
             it[controllerAddressKey] = newControllerAddress
         }
     }

@@ -87,15 +87,26 @@ class MainActivity : ComponentActivity() {
 
     private fun setup() {
         showMessage("Attempting to connect to controller...")
-        deviceManager.startHeartbeat(60_000) { heartbeatSuccess ->
-            val wasConnected = isControllerConnected
-            isControllerConnected = heartbeatSuccess
-
-            if (!heartbeatSuccess && wasConnected) {
-                showMessage("Connection lost.")
+        deviceManager.discoverControllerAddress { discoveredIp ->
+            if (discoveredIp == null) {
+                showMessage("Could not find controller on the network.")
+                isControllerConnected = false
+                return@discoverControllerAddress
             }
-            if (heartbeatSuccess && !wasConnected) {
-                showMessage("Connection restored.")
+
+            isControllerConnected = true
+            showMessage("Connection restored: $discoveredIp")
+
+            deviceManager.startHeartbeat(60_000) { periodicHeartbeatSuccess ->
+                val wasPeriodicallyConnected = isControllerConnected
+                isControllerConnected = periodicHeartbeatSuccess
+
+                if (!periodicHeartbeatSuccess && wasPeriodicallyConnected) {
+                    showMessage("Connection lost.")
+                }
+                if (periodicHeartbeatSuccess && !wasPeriodicallyConnected) {
+                    showMessage("Connection restored.")
+                }
             }
         }
     }
