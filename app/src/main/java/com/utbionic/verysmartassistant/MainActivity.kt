@@ -87,23 +87,24 @@ class MainActivity : ComponentActivity() {
 
     private fun setup() {
         showMessage("Attempting to connect to controller...")
-        deviceManager.discoverControllerAddress { heartbeatSuccess ->
-            if (heartbeatSuccess == null) {
+        deviceManager.discoverControllerAddress { address ->
+            // If the address is null, discovery failed
+            if (address == null) {
                 showMessage("Could not find controller via mDNS.")
                 isControllerConnected = false
                 return@discoverControllerAddress
             }
 
+            // If we made it here, an address was found (String)
             val wasConnected = isControllerConnected
-            isControllerConnected = heartbeatSuccess
+            isControllerConnected = true
 
-            if (!heartbeatSuccess && wasConnected) {
-                showMessage("Connection lost.")
-            }
-            if (heartbeatSuccess && !wasConnected) {
+            // Only notify if the state actually changed from disconnected to connected
+            if (!wasConnected) {
                 showMessage("Connection restored.")
             }
 
+            // Start the heartbeat, which does return a Boolean
             deviceManager.startHeartbeat(60_000) { periodicHeartbeatSuccess ->
                 val wasPeriodicallyConnected = isControllerConnected
                 isControllerConnected = periodicHeartbeatSuccess
