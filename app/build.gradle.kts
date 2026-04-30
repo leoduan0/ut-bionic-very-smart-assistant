@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.utbionic.verysmartassistant"
-        minSdk = 33
+        minSdk = 24
         targetSdk = 36
         versionCode = 4
         versionName = "1.0"
